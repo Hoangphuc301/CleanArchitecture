@@ -13,7 +13,7 @@
 
 ---
 ####  Thách thức & Khó khăn (Issues)
-* **Đồng bộ DB First:** Việc scaffold Entity từ SQL Server vào cấu trúc tầng Layer cần được xử lý khéo léo để không vi phạm "Dependency Rule"
+* **Đồng bộ DB First:** Tool scaffold thường sinh ra các class Models trực tiếp. Nếu để chúng ở tầng Infrastructure thì vi phạm Clean Architecture (vì Domain mới là nơi chứa Entity)
 * **Quản lý Boilerplate:** Số lượng file tăng nhanh do cấu trúc tách biệt của CQRS và Mediator
 
 # 1. Clean Architecture
@@ -466,57 +466,41 @@ var result = from n in _architectureDbContext.News
 
 ## Cấu trúc tổng quát
 
+```text
 CleanArchitecture
-│
 ├── DemoCleanArchitecture.Application
 │   ├── Common
-│   │   └── Mappings                   # Sử dụng AutoMapper để map Entity ↔ DTO
+│   │   └── Mappings              # Cấu hình AutoMapper (Entity ↔ DTO)
 │   │       └── ApplicationMappingProfile.cs
-│   │
-│   ├── Features
-│   │   ├── DTOs                       # Chứa DTO dùng để trao đổi dữ liệu giữa các tầng
-│   │   │   ├── Menu
-│   │   │   └── New
-│   │   │       └── NewDTO.cs
-│   │   │
-│   │   ├── Menu                       # Module xử lý nghiệp vụ Menu
-│   │   │
-│   │   └── New                        # Module xử lý nghiệp vụ News
-│   │       ├── Commands               # Chứa các Command dùng để Create/Update/Delete
-│   │       │   ├── CreateNew
-│   │       │   │   ├── CreateNewCommand.cs     # Dữ liệu request tạo tin tức
-│   │       │   │   └── CreateNewHandler.cs     # Xử lý nghiệp vụ tạo tin tức
-│   │       │   │
-│   │       │   ├── DeleteNew
-│   │       │   └── UpdateNew
-│   │       │
-│   │       └── Queries                # Chứa các Query dùng để lấy dữ liệu
-│   │           ├── GetAllNew
-│   │           └── GetNewById
-│   │
-│   └── DependencyInjection.cs         # Đăng ký Dependency Injection cho Application
-│
+│   ├── Features                  # Xử lý nghiệp vụ theo từng module (CQRS)
+│   │   ├── Menu
+│   │   │   ├── Commands          # Logic thay đổi dữ liệu (CUD)
+│   │   │   │   └── CreateNew
+│   │   │   │       ├── CreateNewCommand.cs
+│   │   │   │       └── CreateNewHandler.cs
+│   │   │   └── Queries           # Logic truy vấn dữ liệu (R)
+│   │   │       ├── GetAllNew
+│   │   │       └── GetNewById
+│   │   └── News                  # Module xử lý tin tức
+│   │       └── DTOs              # Vật chứa dữ liệu trao đổi giữa các tầng
+│   │           └── NewDTO.cs
+│   └── DependencyInjection.cs    # Đăng ký Service tầng Application
 ├── DemoCleanArchitecture.Domain
-│   ├── Entities                       # Chứa các Entity nghiệp vụ chính
+│   ├── Entities                  # Thực thể nghiệp vụ chính
 │   │   ├── MenuNews.cs
 │   │   ├── Menus.cs
 │   │   └── News.cs
-│   │
-│   ├── Interfaces                     # Chứa các Interface abstraction
-│   │   ├── IMenuRepository.cs
-│   │   └── INewRepository.cs
-│
+│   └── Interfaces                # Định nghĩa các bản thiết kế (Abstraction)
+│       ├── IMenuRepository.cs
+│       └── INewRepository.cs
 ├── DemoCleanArchitecture.Infrastructure
-│   ├── Data
-│   │   └── ArchitectureDbContext.cs   # DbContext làm việc với EF Core
-│   │
-│   ├── Repositories                   # Implement Repository Interface
+│   ├── Data                      # Kết nối Database (EF Core)
+│   │   └── ArchitectureDbContext.cs
+│   ├── Repositories              # Triển khai chi tiết truy vấn DB
 │   │   ├── MenuRepository.cs
 │   │   └── NewRepository.cs
-│   │
-│   └── DependencyInjection.cs         # Đăng ký Repository và Service cho DI
-│
+│   └── DependencyInjection.cs    # Đăng ký Repository & Infrastructure Service
 └── DemoCleanArchitecture.API
-    ├── Controllers                    # Nhận request từ client
-    └── Program.cs                     # Cấu hình application và Infrastructure
+    ├── Controllers               # Tiếp nhận Request từ Client
+    └── Program.cs                # Cấu hình khởi tạo Application
 ```
