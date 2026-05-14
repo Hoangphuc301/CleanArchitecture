@@ -1,4 +1,7 @@
-﻿using CleanArchitecture.Application.Common.Mapping;
+﻿using CleanArchitecture.Application.Common.Behaviors;
+using CleanArchitecture.Application.Common.Mapping;
+using FluentValidation;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 
@@ -18,6 +21,9 @@ namespace CleanArchitecture.Application
             {
                 cfg.AddProfile(typeof(ApplicationMappingProfile));
             });
+
+            services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly()); // Đăng ký tất cả các validator trong assembly
+                                                                                 // Hoạt động bằng cách cho các class kế thừa AbstractValidator<T>
 
             return services;
         }

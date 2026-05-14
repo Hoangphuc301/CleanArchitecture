@@ -2,11 +2,9 @@
 using Microsoft.AspNetCore.Mvc;
 using CleanArchitecture.Application.Features.New.Queries.GetAllNew;
 using CleanArchitecture.Application.Features.New.Commands.CreateNew;
-using CleanArchitecture.Application.Features.Menu.Commands.DeleteMenu;
-using CleanArchitecture.Application.Features.Menu.Commands.UpdateMenu;
 using CleanArchitecture.Application.Features.New.Commands.DeleteNew;
-using CleanArchitecture.Application.Features.Menu.Queries.GetMenuById;
 using CleanArchitecture.Application.Features.New.Queries.GetNewById;
+using CleanArchitecture.Application.Features.New.Commands.UpdateNew;
 
 namespace CleanArchitecture.API.Controllers
 {
@@ -43,7 +41,7 @@ namespace CleanArchitecture.API.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, UpdateMenuCommand command)
+        public async Task<IActionResult> Update(int id, UpdateNewCommand command)
         {
             var res = await _mediator.Send(command);
             return Ok(res);

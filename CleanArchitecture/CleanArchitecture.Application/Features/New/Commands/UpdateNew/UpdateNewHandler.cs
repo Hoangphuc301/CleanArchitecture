@@ -23,6 +23,7 @@ namespace CleanArchitecture.Application.Features.New.Commands.UpdateNew
 
             news.Title = request.Title;
             news.Slug = request.Slug;
+            news.Summary = request.Summary;
             news.Content = request.Content;
 
             await _newRepository.UpdateAsync(news.NewsId, news);

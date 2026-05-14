@@ -1,6 +1,8 @@
-﻿using CleanArchitecture.Domain.Entities;
+﻿using CleanArchitecture.Application.Common.Behaviors;
+using CleanArchitecture.Domain.Entities;
 using CleanArchitecture.Domain.Interfaces;
 using CleanArchitecture.Infrastructure.Repositories;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +17,9 @@ public static class DependencyInjection
             options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
         services.AddScoped<IMenuRepository, MenuRepository>();
-        services.AddScoped<INewRepository, NewRepository>(); 
+        services.AddScoped<INewRepository, NewRepository>();
+
+        services.AddTransient( typeof(IPipelineBehavior<,>),typeof(ValidationBehavior<,>));
 
         return services;
     }

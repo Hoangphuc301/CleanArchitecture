@@ -9,6 +9,7 @@ namespace CleanArchitecture.Application.Features.New.Commands.UpdateNew
         int NewId,
         string Title,
         string Slug,
+        string Summary,
         string Content
     ) : IRequest<NewDTO>;
 }

@@ -1,3 +1,4 @@
+[11/05/2026]
 # Learning Clean Architecture + CQRS + MediatR
 
 ## Progress Table 
@@ -520,3 +521,528 @@ CleanArchitecture
     ├── Controllers                    # Nhận request từ client
     └── Program.cs                     # Cấu hình application và Infrastructure
 ```
+
+[14/05/2026]
+# Clean Architecture + CQRS + FluentValidation + RabbitMQ + MongoDB
+
+> Tổng hợp kiến thức về FluentValidation, MediatR Pipeline, CQRS, RabbitMQ, Eventual Consistency và MongoDB trong ASP.NET Core.
+
+---
+
+# 1. Tại sao FluentValidation phù hợp với Clean Architecture hơn Data Annotations?
+
+## So sánh tổng quan
+
+| Tiêu chí                          | Data Annotations                  | FluentValidation                     |
+| --------------------------------- | --------------------------------- | ------------------------------------ |
+| Vị trí validation                 | Gắn trực tiếp trên Entity/DTO     | Tách riêng thành Validator class     |
+| Separation of Concerns            | Kém, dễ “làm bẩn” model           | Tốt, model sạch sẽ                   |
+| Phụ thuộc Framework               | Phụ thuộc ASP.NET/DataAnnotations | Ít phụ thuộc framework               |
+| Độ phù hợp với Clean Architecture | Không tối ưu                      | Rất phù hợp                          |
+| Validation logic phức tạp         | Khó xử lý                         | Dễ xử lý với `.When()`, `.Must()`    |
+| Validation theo điều kiện         | Hạn chế                           | Hỗ trợ mạnh                          |
+| Async validation                  | Hầu như không hỗ trợ tốt          | Hỗ trợ `ValidateAsync()`             |
+| Inject Service/Repository         | Khó                               | Dễ dàng qua DI                       |
+| Tái sử dụng validator             | Thấp                              | Cao                                  |
+| Validation theo nhiều ngữ cảnh    | Khó thực hiện                     | Có thể tạo nhiều Validator khác nhau |
+| Tích hợp MediatR Pipeline         | Không tối ưu                      | Tích hợp hoàn hảo                    |
+| Giữ Handler sạch                  | Handler thường phải check thêm    | Validation tự động trước Handler     |
+| Unit Testing                      | Khó test riêng                    | Dễ test độc lập                      |
+| Khả năng mở rộng                  | Kém hơn trong project lớn         | Tốt cho enterprise/microservices     |
+| Khả năng đọc code                 | Rule bị rải trên model            | Rule tập trung, dễ đọc               |
+| Bảo trì lâu dài                   | Khó hơn                           | Dễ maintain                          |
+| Hiệu quả trong CQRS               | Không phù hợp lắm                 | Rất phù hợp                          |
+| Mức độ linh hoạt                  | Thấp                              | Cao                                  |
+| Phù hợp project nhỏ               | Rất phù hợp                       | Có thể hơi dư thừa                   |
+| Phù hợp project lớn               | Dễ rối                            | Rất phù hợp                          |
+
+---
+
+# 2. Tích hợp FluentValidation vào MediatR Pipeline
+
+## Kiến trúc hoạt động
+
+```text
+API Request
+    ↓
+MediatR
+    ↓
+ValidationBehavior
+    ↓ valid?
+ ┌───────────────┐
+ │ YES           │
+ │    ↓          │
+ │ Handler       │
+ └───────────────┘
+
+ ┌───────────────┐
+ │ NO            │
+ │    ↓          │
+ │ Throw Exception
+ └───────────────┘
+```
+
+---
+
+# 3. Cài đặt Packages
+
+## Application Layer
+
+```bash
+dotnet add package FluentValidation.AspNetCore
+dotnet add package FluentValidation.DependencyInjectionExtensions
+dotnet add package MediatR
+```
+
+---
+
+# 4. Tạo Command
+
+```csharp
+public record CreateMenuCommand
+(
+    string MenuName,
+    string? Slug,
+    int? DisplayOrder
+) : IRequest<MenuDto>;
+```
+
+---
+
+# 5. Tạo Validator
+
+```csharp
+public class CreateMenuValidator : AbstractValidator<CreateMenuCommand>
+{
+    public CreateMenuValidator()
+    {
+        RuleFor(x => x.MenuName)
+            .NotEmpty()
+            .WithMessage("Tên menu là bắt buộc")
+            .MaximumLength(100)
+            .WithMessage("Tên menu không được vượt quá 100 ký tự");
+
+        RuleFor(x => x.Slug)
+            .MaximumLength(500)
+            .WithMessage("Đường dẫn không được vượt quá 500 ký tự");
+
+        RuleFor(x => x.DisplayOrder)
+            .LessThanOrEqualTo(500)
+            .WithMessage("DisplayOrder không được vượt quá 500");
+    }
+}
+```
+
+---
+
+# 6. Tạo ValidationBehavior
+
+```csharp
+public class ValidationBehavior<TRequest, TResponse>
+    : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : notnull
+{
+    private readonly IEnumerable<IValidator<TRequest>> _validators;
+
+    public ValidationBehavior(
+        IEnumerable<IValidator<TRequest>> validators)
+    {
+        _validators = validators;
+    }
+
+    public async Task<TResponse> Handle(
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
+        CancellationToken cancellationToken)
+    {
+        if (_validators.Any())
+        {
+            var context = new ValidationContext<TRequest>(request);
+
+            var validationResults = await Task.WhenAll(
+                _validators.Select(v =>
+                    v.ValidateAsync(context, cancellationToken)));
+
+            var failures = validationResults
+                .SelectMany(r => r.Errors)
+                .Where(f => f != null)
+                .ToList();
+
+            if (failures.Any())
+            {
+                throw new ValidationException(failures);
+            }
+        }
+
+        return await next();
+    }
+}
+```
+
+---
+
+# 7. Luồng hoạt động
+
+## Khi API gửi request
+
+MediatR sẽ:
+
+1. Chạy `ValidationBehavior`
+2. Tìm Validator tương ứng
+3. Validate Request
+4. Nếu lỗi → throw exception
+5. Nếu hợp lệ → gọi Handler
+
+---
+
+# 8. Đăng ký Dependency Injection
+
+## Application Layer
+
+```csharp
+services.AddValidatorsFromAssembly(
+    Assembly.GetExecutingAssembly());
+
+services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(
+        Assembly.GetExecutingAssembly());
+});
+```
+
+---
+
+## Infrastructure Layer
+
+```csharp
+services.AddTransient(
+    typeof(IPipelineBehavior<,>),
+    typeof(ValidationBehavior<,>));
+```
+
+---
+
+## Program.cs
+
+```csharp
+builder.Services.AddApplicationServices();
+builder.Services.AddInfrastructureServices(builder.Configuration);
+
+app.UseMiddleware<ExceptionMiddleware>();
+```
+
+---
+
+# 9. Tạo Handler
+
+```csharp
+public class CreateMenuHandler
+    : IRequestHandler<CreateMenuCommand, MenuDto>
+{
+    private readonly IMenuRepository _menuRepository;
+    private readonly IMapper _mapper;
+
+    public CreateMenuHandler(
+        IMenuRepository menuRepository,
+        IMapper mapper)
+    {
+        _menuRepository = menuRepository;
+        _mapper = mapper;
+    }
+
+    public async Task<MenuDto> Handle(
+        CreateMenuCommand request,
+        CancellationToken cancellationToken)
+    {
+        var menuEntity = _mapper.Map<Menus>(request);
+
+        var result = await _menuRepository
+            .CreateAsync(menuEntity);
+
+        return _mapper.Map<MenuDto>(result);
+    }
+}
+```
+
+---
+
+# 10. RabbitMQ giải quyết vấn đề gì trong CQRS?
+
+RabbitMQ thường được dùng để:
+
+* Giao tiếp bất đồng bộ giữa các service
+* Đồng bộ dữ liệu giữa Write DB và Read DB
+* Giảm coupling
+* Hỗ trợ Event-Driven Architecture
+* Triển khai Eventual Consistency
+
+---
+
+# 11. Eventual Consistency là gì?
+
+> Eventual Consistency là cơ chế đảm bảo dữ liệu cuối cùng sẽ đồng bộ giữa các service, nhưng không nhất thiết phải đồng bộ ngay lập tức.
+
+---
+
+# Luồng hoạt động
+
+```text
+Client
+   ↓
+Create 
+   ↓
+Write Database updated
+   ↓
+Publish Event
+   ↓
+RabbitMQ
+   ↓
+Consumers
+   ↓
+Update Read Database
+```
+
+---
+
+# Các giai đoạn của Eventual Consistency
+
+## 1. Write Phase
+
+Dữ liệu được ghi vào Write Database.
+
+---
+
+## 2. Inconsistency Window
+
+Có khoảng thời gian ngắn dữ liệu chưa đồng bộ.
+
+---
+
+## 3. Event Propagation
+
+RabbitMQ phát event tới các service khác.
+
+---
+
+## 4. Replication / Update
+
+Các service nhận event và cập nhật dữ liệu.
+
+---
+
+## 5. Final State
+
+Toàn bộ hệ thống trở nên nhất quán.
+
+---
+
+# Ví dụ thực tế
+
+## Facebook / TikTok Like
+
+Bạn nhấn Like:
+
+* Máy bạn thấy tăng ngay
+* Người khác có thể thấy chậm vài giây
+
+→ Đây chính là Eventual Consistency.
+
+---
+
+## Chuyển tiền liên ngân hàng
+
+* Tài khoản gửi bị trừ ngay
+* Tài khoản nhận cập nhật sau vài phút
+
+→ Cuối cùng dữ liệu vẫn chính xác.
+
+---
+
+# 12. Tại sao MongoDB thường dùng cho Read Side trong CQRS?
+
+Trong CQRS:
+
+* SQL Server thường dùng cho Write Side
+* MongoDB thường dùng cho Read Side
+
+---
+
+# Lý do
+
+## 1. Tối ưu truy vấn đọc
+
+SQL Server:
+
+* Dữ liệu chuẩn hóa
+* Cần JOIN nhiều bảng
+
+MongoDB:
+
+* Dữ liệu phi chuẩn hóa
+* Một Document chứa đủ dữ liệu
+
+---
+
+## Ví dụ
+
+### SQL Server
+
+```sql
+SELECT *
+FROM Orders o
+JOIN Customers c ON ...
+JOIN Products p ON ...
+```
+
+---
+
+### MongoDB
+
+```js
+db.orders.findOne({ _id: orderId })
+```
+
+---
+
+# 2. Tốc độ đọc nhanh hơn
+
+MongoDB:
+
+* Tối ưu đọc dữ liệu
+* Hỗ trợ index linh hoạt
+* Độ trễ thấp
+
+---
+
+# 3. Schema linh hoạt
+
+MongoDB cho phép:
+
+* thêm field mới dễ dàng
+* không cần ALTER TABLE
+
+Rất phù hợp khi UI thay đổi liên tục.
+
+---
+
+# 4. Scale tốt hơn
+
+MongoDB hỗ trợ:
+
+* Horizontal Scaling
+* Sharding
+* Scale-out
+
+---
+
+# 5. Phù hợp với Eventual Consistency
+
+RabbitMQ đẩy Event:
+
+```text
+Write Side
+    ↓
+RabbitMQ
+    ↓
+Read Side
+    ↓
+MongoDB updated
+```
+
+MongoDB lưu JSON/document rất phù hợp cho Read Model.
+
+---
+
+# So sánh SQL Server vs MongoDB
+
+| Đặc điểm    | SQL Server (Write Side)               | MongoDB (Read Side)    |
+| ----------- | ------------------------------------- | ---------------------- |
+| Mục tiêu    | Bảo toàn tính toàn vẹn dữ liệu (ACID) | Tối ưu tốc độ hiển thị |
+| Cấu trúc    | Chuẩn hóa dữ liệu                     | Phi chuẩn hóa dữ liệu  |
+| Truy vấn    | JOIN phức tạp                         | Query đơn giản         |
+| Mở rộng     | Scale-up                              | Scale-out              |
+| Transaction | Mạnh                                  | Hạn chế hơn            |
+| Phù hợp     | Write Side                            | Read Side              |
+
+---
+
+# Tổng kết kiến trúc CQRS hiện đại
+
+```text
+Client
+   ↓
+API
+   ↓
+MediatR
+   ↓
+ValidationBehavior
+   ↓
+Command Handler
+   ↓
+SQL Server (Write DB)
+   ↓
+Publish Event
+   ↓
+RabbitMQ
+   ↓
+Consumers
+   ↓
+MongoDB (Read DB)
+```
+
+---
+
+# Công nghệ thường dùng
+
+| Công nghệ             | Vai trò         |
+| --------------------- | --------------- |
+| ASP.NET Core          | Web API         |
+| MediatR               | CQRS + Pipeline |
+| FluentValidation      | Validation      |
+| RabbitMQ              | Message Broker  |
+| MongoDB               | Read Database   |
+| SQL Server            | Write Database  |
+| AutoMapper            | Mapping         |
+| Entity Framework Core | ORM             |
+```
+
+CleanArchitecture
+├── DemoCleanArchitecture.Application
+│   ├── Common
+│   │   └── Mappings              # Cấu hình AutoMapper (Entity ↔ DTO)
+│   │   |    └── ApplicationMappingProfile.cs
+│   │   └── Behaviors              # Cấu hình Validation
+│   │        └── ValidationBehavior.cs
+│   ├── Features                  # Xử lý nghiệp vụ theo từng module (CQRS)
+│   │   ├── Menu
+│   │   │   ├── Commands          # Logic thay đổi dữ liệu (CUD)
+│   │   │   │   └── CreateNew
+│   │   │   │       ├── CreateNewCommand.cs
+│   │   │   │       └── CreateNewHandler.cs
+|   |   |   |       └── CreateMenuValidator.cs
+│   │   │   └── Queries           # Logic truy vấn dữ liệu (R)
+│   │   │       ├── GetAllNew
+│   │   │       └── GetNewById
+│   │   └── News                  # Module xử lý tin tức
+│   │       └── DTOs              # Vật chứa dữ liệu trao đổi giữa các tầng
+│   │           └── NewDTO.cs
+│   └── DependencyInjection.cs    # Đăng ký Service tầng Application
+├── DemoCleanArchitecture.Domain
+│   ├── Entities                  # Thực thể nghiệp vụ chính
+│   │   ├── MenuNews.cs
+│   │   ├── Menus.cs
+│   │   └── News.cs
+│   └── Interfaces                # Định nghĩa các bản thiết kế (Abstraction)
+│       ├── IMenuRepository.cs
+│       └── INewRepository.cs
+├── DemoCleanArchitecture.Infrastructure
+│   ├── Data                      # Kết nối Database (EF Core)
+│   │   └── ArchitectureDbContext.cs
+│   ├── Repositories              # Triển khai chi tiết truy vấn DB
+│   │   ├── MenuRepository.cs
+│   │   └── NewRepository.cs
+│   └── DependencyInjection.cs    # Đăng ký Repository & Infrastructure Service
+└── DemoCleanArchitecture.API
+    ├── Controllers               # Tiếp nhận Request từ Client
+    |── Program.cs                # Cấu hình khởi tạo Application
+    └── Middleware                #

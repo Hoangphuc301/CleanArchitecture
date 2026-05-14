@@ -1,3 +1,4 @@
+﻿using CleanArchitecture.API.Middleware;
 using CleanArchitecture.Application;
 using CleanArchitecture.Infrastructure;
 
@@ -27,6 +28,8 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseAuthorization();
+
+app.UseMiddleware<ExceptionMiddleware>(); // Sử dụng middleware xử lý lỗi chung cho toàn bộ ứng dụng
 
 app.MapControllers();
 
