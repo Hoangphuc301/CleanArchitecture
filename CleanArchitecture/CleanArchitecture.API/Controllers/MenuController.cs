@@ -52,6 +52,12 @@ namespace CleanArchitecture.API.Controllers
         public async Task<IActionResult> GetById(int id)
         {
             var res = await _mediator.Send(new GetMenuByIdQuery { MenuId = id });
+
+            if (res == null)
+            {
+                return NotFound(new { message = $"Không tìm thấy dữ liệu tương ứng với id {id}" });
+            }
+
             return Ok(res);
         }
     }

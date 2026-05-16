@@ -1,9 +1,14 @@
 ﻿using CleanArchitecture.API.Middleware;
 using CleanArchitecture.Application;
 using CleanArchitecture.Infrastructure;
-
+using CleanArchitecture.Infrastructure.Persistence.Mongo;
+using CleanArchitecture.Infrastructure.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add configuration for MongoDB and RabbitMQ
+builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDb"));
+builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMq"));
 
 // Add services to the container.
 builder.Services.AddApplicationServices();

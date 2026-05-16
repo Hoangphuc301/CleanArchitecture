@@ -1,26 +1,38 @@
-﻿using CleanArchitecture.Application.Common.Behaviors;
+﻿using CleanArchitecture.Application.Common.Interfaces;
 using CleanArchitecture.Domain.Entities;
 using CleanArchitecture.Domain.Interfaces;
+using CleanArchitecture.Infrastructure.Persistence.Mongo;
 using CleanArchitecture.Infrastructure.Repositories;
-using MediatR;
+using CleanArchitecture.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CleanArchitecture.Infrastructure;
-
-public static class DependencyInjection
+namespace CleanArchitecture.Infrastructure
 {
-    public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
+    public static class DependencyInjection
     {
-        services.AddDbContext<ArchitectureDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+        public static IServiceCollection
+            AddInfrastructureServices(
+                this IServiceCollection services,
+                IConfiguration configuration)
+        {
+            services.AddDbContext<ArchitectureDbContext>( options => options.UseSqlServer( configuration.GetConnectionString("DefaultConnection")));
 
-        services.AddScoped<IMenuRepository, MenuRepository>();
-        services.AddScoped<INewRepository, NewRepository>();
+            services.AddScoped<INewRepository, NewRepository>();
+            services.AddScoped<IMenuRepository, MenuRepository>();
 
-        services.AddTransient( typeof(IPipelineBehavior<,>),typeof(ValidationBehavior<,>));
+            services.AddScoped<IMenuReadRepository, MenuReadRepository>();
 
-        return services;
+            services.AddSingleton<MongoDbContext>();
+
+            // RabbitMQ
+            services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();
+
+            // TỰ ĐỘNG CHẠY CONSUMER
+            services.AddHostedService<MenuEventConsumer>();
+
+            return services;
+        }
     }
 }

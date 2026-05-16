@@ -1030,3 +1030,520 @@ CleanArchitecture
     ├── Controllers               # Tiếp nhận Request từ Client
     |── Program.cs                # Cấu hình khởi tạo Application
     └── Middleware                #
+
+```
+# [16/05/26]
+# RabbitMQ + MongoDB Architecture (CQRS Pattern)
+
+## Tổng Quan
+
+Hệ thống sử dụng mô hình:
+
+- Clean Architecture
+- CQRS + MediatR
+- RabbitMQ
+- MongoDB
+- SQL Server
+
+Trong đó:
+
+| Thành phần | Vai trò |
+| SQL Server | Database chính cho thao tác WRITE |
+| MongoDB    | Database phục vụ READ |
+| RabbitMQ   | Message Broker truyền Event |
+
+---
+
+#  Kiến Trúc Hệ Thống
+
+```text
+[ API (Presentation) ]
+            │
+            ▼
+[ Application Layer ]
+            │
+            ▼
+[ Infrastructure Layer ]
+            │
+     ┌──────┴──────┐
+     ▼             ▼
+SQL Server     RabbitMQ
+(Write DB)      (Event Bus)
+                     │
+                     ▼
+                Consumer
+                     │
+                     ▼
+                 MongoDB
+                 (Read DB)
+
+                [ Domain ]
+```
+
+---
+
+#  Luồng Hoạt Động Dữ Liệu
+
+---
+
+#  Luồng Ghi
+
+##  Mục tiêu
+
+Thêm/Sửa/Xóa dữ liệu vào SQL Server và đồng bộ sang MongoDB.
+
+Ví dụ:
+
+```http
+POST /api/menu
+```
+
+---
+
+##  Flow
+
+```text
+Client
+   ↓
+MenuController
+   ↓
+MediatR Command
+   ↓
+ValidationBehavior
+   ↓
+CreateMenuHandler
+   ↓
+SQL Server
+   ↓
+RabbitMQ Publisher
+   ↓
+RabbitMQ Exchange
+   ↓
+Queue
+   ↓
+Consumer
+   ↓
+MongoDB
+```
+
+---
+
+## Các bước xử lý
+
+### 1. API Layer
+
+`MenuController.cs`
+
+- Nhận HTTP Request từ Client
+- Tạo `CreateMenuCommand`
+- Gọi:
+
+```csharp
+await _mediator.Send(command);
+```
+
+---
+
+### 2. Validation Pipeline
+
+`ValidationBehavior.cs`
+
+Tự động chạy:
+
+```text
+CreateMenuValidator.cs
+```
+
+Kiểm tra:
+
+- Required fields
+- Format dữ liệu
+- Business Rules
+
+| Trạng thái    | Hành động       |
+|  Hợp lệ       | Tiếp tục xử lý  |
+|  Không hợp lệ | Throw Exception |
+
+---
+
+### 3. Command Handler
+
+`CreateMenuHandler.cs`
+
+Handler thực hiện:
+
+- Tạo Entity
+- Gọi Repository
+- Lưu vào SQL Server
+
+```text
+SQL Server = Source Of Truth
+```
+
+---
+
+### 4. Publish Event → RabbitMQ
+
+Sau khi lưu thành công:
+
+```text
+MenuCreatedEvent
+```
+
+được publish bằng:
+
+```text
+RabbitMqPublisher.cs
+```
+
+Routing Keys:
+
+```text
+menu.created
+menu.updated
+menu.deleted
+```
+
+---
+
+### 5. API Response
+
+Controller trả về:
+
+```http
+HTTP 200 / 201
+```
+
+---
+
+#  Luồng Đồng Bộ Ngầm
+
+## Mục tiêu
+
+Đồng bộ dữ liệu:
+
+```text
+SQL Server → MongoDB
+```
+
+theo cơ chế bất đồng bộ.
+
+---
+
+## Flow
+
+```text
+RabbitMQ Queue
+      ↓
+MenuEventConsumer
+      ↓
+Deserialize Event
+      ↓
+MongoDB Repository
+      ↓
+MongoDB Updated
+```
+
+---
+
+## Các bước xử lý
+
+### 1. Consumer Lắng Nghe Queue
+
+`MenuEventConsumer.cs`
+
+Lắng nghe queue:
+
+```text
+menu-events-queue
+```
+
+---
+
+### 2. Nhận Event
+
+Ví dụ message:
+
+```json
+{
+  "id": 1,
+  "name": "Thai Tea",
+  "price": 45000
+}
+```
+
+---
+
+### 3. Parse Message
+
+Consumer sẽ:
+
+- Deserialize JSON
+- Xác định loại Event:
+  - Created
+  - Updated
+  - Deleted
+
+---
+
+### 4. Cập Nhật MongoDB
+
+Thông qua:
+
+```text
+IMenuReadRepository.cs
+```
+
+MongoDB được cập nhật để phục vụ đọc dữ liệu.
+
+---
+
+# Luồng Đọc (Read Flow)
+
+## Mục tiêu
+
+Lấy dữ liệu trực tiếp từ MongoDB.
+
+Ví dụ:
+
+```http
+GET /api/menu
+```
+
+---
+
+## Flow
+
+```text
+Client
+   ↓
+MenuController
+   ↓
+GetAllMenuQuery
+   ↓
+Query Handler
+   ↓
+MongoDB Repository
+   ↓
+MongoDB
+   ↓
+MenuDto
+   ↓
+Client
+```
+
+---
+
+## Các bước xử lý
+
+### 1. API Layer
+
+Controller tạo Query:
+
+```text
+GetAllMenuQuery
+GetMenuByIdQuery
+```
+
+---
+
+### 2. Query Handler
+
+Ví dụ:
+
+```text
+GetAllMenuHandler.cs
+```
+
+---
+
+### 3. Read Repository
+
+Handler gọi:
+
+```text
+IMenuReadRepository.cs
+```
+
+---
+
+### 4. MongoDB Query
+
+Infrastructure truy vấn trực tiếp MongoDB.
+
+---
+
+### 5. Mapping DTO
+
+Dữ liệu được map qua:
+
+```text
+MenuDto.cs
+```
+
+Mục đích:
+
+- Ẩn field không cần thiết
+- Tối ưu response
+- Trả dữ liệu gọn nhẹ
+
+---
+
+# RabbitMQ Là Gì?
+
+RabbitMQ là:
+
+```text
+Message Broker
+```
+
+Giúp:
+
+- Gửi message giữa các service
+- Tách rời hệ thống
+- Xử lý bất đồng bộ
+- Queue công việc
+- Retry khi lỗi
+- Scale hệ thống dễ dàng
+
+---
+
+# MongoDB Là Gì?
+
+MongoDB là:
+
+```text
+NoSQL Document Database
+```
+
+---
+
+# Tại Sao RabbitMQ Đi Với MongoDB?
+
+Vì chúng giải quyết 2 vấn đề khác nhau.
+
+| Công nghệ | Vai trò |
+| RabbitMQ | Truyền dữ liệu/Event |
+| MongoDB | Lưu dữ liệu đọc |
+| SQL Server | Database giao dịch chính |
+
+---
+
+# RabbitMQ Hoạt Động Như Thế Nào?
+
+RabbitMQ gồm 4 thành phần chính:
+
+| Thành phần | Vai trò            |
+| Producer   | Gửi Message        |
+| Exchange   | Điều hướng Message |
+| Queue      | Hàng đợi Message   | 
+| Consumer   | Nhận Message       |
+
+---
+
+# Mapping Với Source Code
+
+| RabbitMQ Component | Source Code  |
+| Producer | `RabbitMqPublisher.cs` |
+| Exchange | `menu-exchange`        |
+| Queue    | `menu-events-queue`    |
+| Consumer | `MenuEventConsumer.cs` |
+
+---
+
+# RabbitMQ Event Flow
+
+```text
+CreateMenuHandler
+        ↓
+RabbitMqPublisher
+        ↓
+Exchange: menu-exchange
+        ↓
+RoutingKey: menu.created
+        ↓
+QueueBind
+        ↓
+Queue: menu-events-queue
+        ↓
+MenuEventConsumer
+        ↓
+MongoDB
+```
+
+---
+
+# MongoDB Trong CQRS
+
+MongoDB đóng vai trò:
+
+```text
+Read Model Database
+```
+
+CQRS tách biệt:
+
+| Chức năng | Database |
+| WRITE | SQL Server |
+| READ | MongoDB |
+
+---
+
+# Lợi Ích Của Kiến Trúc Này
+
+## Performance
+
+- Đọc dữ liệu nhanh hơn
+- MongoDB tối ưu query read
+
+---
+
+## Scalability
+
+- Scale Read DB độc lập
+- Scale Consumer độc lập
+
+---
+
+## Loose Coupling
+
+Các service không phụ thuộc trực tiếp nhau.
+
+---
+
+## Async Processing
+
+Không block request Client.
+
+---
+
+## Reliability
+
+RabbitMQ giữ message nếu Consumer bị down.
+
+---
+
+# Tổng Kết
+
+Hệ thống sử dụng:
+
+- Clean Architecture
+- CQRS + MediatR
+- RabbitMQ
+- MongoDB
+- SQL Server
+
+để xây dựng kiến trúc:
+
+```text
+Write Optimized + Read Optimized
+```
+
+Giúp hệ thống:
+
+- Dễ mở rộng
+- Dễ maintain
+- Hiệu năng cao
+- Xử lý bất đồng bộ hiệu quả
+- Tối ưu truy vấn đọc dữ liệu lớn
+```

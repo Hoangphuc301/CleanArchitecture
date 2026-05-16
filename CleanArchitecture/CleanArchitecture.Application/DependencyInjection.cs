@@ -20,6 +20,8 @@ namespace CleanArchitecture.Application
             services.AddAutoMapper(cfg =>
             {
                 cfg.AddProfile(typeof(ApplicationMappingProfile));
+
+                cfg.AddMaps(AppDomain.CurrentDomain.GetAssemblies());
             });
 
             services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly()); // Đăng ký tất cả các validator trong assembly
