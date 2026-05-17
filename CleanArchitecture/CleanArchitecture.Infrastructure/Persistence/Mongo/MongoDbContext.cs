@@ -17,5 +17,6 @@ namespace CleanArchitecture.Infrastructure.Persistence.Mongo
         }
 
         public IMongoCollection<MenuLog> MenuLogs => _database.GetCollection<MenuLog>("MenuLogs");
+        public IMongoCollection<NewLog> NewLogs => _database.GetCollection<NewLog>("NewLogs");
     }
 }

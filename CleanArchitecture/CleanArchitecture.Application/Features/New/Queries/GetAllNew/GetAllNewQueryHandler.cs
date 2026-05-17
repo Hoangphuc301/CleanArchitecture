@@ -1,6 +1,5 @@
-﻿using AutoMapper;
+﻿using CleanArchitecture.Application.Common.Interfaces;
 using CleanArchitecture.Application.Features.DTOs.New;
-using CleanArchitecture.Domain.Interfaces;
 using MediatR;
 
 
@@ -8,18 +7,15 @@ namespace CleanArchitecture.Application.Features.New.Queries.GetAllNew
 {
     public class GetAllNewQueryHandler : IRequestHandler<GetAllNewQuery, List<NewDTO>>
     {
-        private readonly INewRepository _newRepository;
-        private readonly IMapper _mapper;
-        public GetAllNewQueryHandler(INewRepository newRepository, IMapper mapper)
+        private readonly INewReadRepository _newReadRepository;
+        public GetAllNewQueryHandler(INewReadRepository newRepository)
         {
-            _newRepository = newRepository;
-            _mapper = mapper;
+            _newReadRepository = newRepository;
         }
 
         public async Task<List<NewDTO>> Handle(GetAllNewQuery query, CancellationToken cancellationToken)
         {
-            var news = await _newRepository.GetAllAsync();
-            return _mapper.Map<List<NewDTO>>(news);
+            return await _newReadRepository.GetAllAsync(cancellationToken);
         }
     }
 }

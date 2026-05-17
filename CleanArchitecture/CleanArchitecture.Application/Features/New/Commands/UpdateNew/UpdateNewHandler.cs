@@ -1,6 +1,8 @@
 ﻿
 using AutoMapper;
+using CleanArchitecture.Application.Common.Interfaces;
 using CleanArchitecture.Application.Features.DTOs.New;
+using CleanArchitecture.Application.Features.New.Events;
 using CleanArchitecture.Domain.Interfaces;
 using MediatR;
 
@@ -10,11 +12,13 @@ namespace CleanArchitecture.Application.Features.New.Commands.UpdateNew
     {
         private readonly INewRepository _newRepository;
         private readonly IMapper _mapper;
+        private readonly IMessagePublisher _messagePublisher;
 
-        public UpdateNewHandler(INewRepository newRepository, IMapper mapper)
+        public UpdateNewHandler(INewRepository newRepository, IMapper mapper, IMessagePublisher messagePublisher)
         {
             _newRepository = newRepository;
             _mapper = mapper;
+            _messagePublisher = messagePublisher;
         }
 
         public async Task<NewDTO> Handle(UpdateNewCommand request, CancellationToken cancellationToken)
@@ -25,6 +29,17 @@ namespace CleanArchitecture.Application.Features.New.Commands.UpdateNew
             news.Slug = request.Slug;
             news.Summary = request.Summary;
             news.Content = request.Content;
+
+            await _messagePublisher.PublishAsync(
+                exchange: "new-exchange",
+                routingKey: "new.updated",
+                message: new NewUpdatedEvent
+                {
+                    NewId = news.NewsId,
+                    NewTitle = news.Title,
+                    Slug = news.Slug,
+                    Content = news.Content
+                });
 
             await _newRepository.UpdateAsync(news.NewsId, news);
 
