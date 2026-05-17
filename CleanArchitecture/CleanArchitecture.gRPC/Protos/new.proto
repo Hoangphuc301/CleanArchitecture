@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+option csharp_namespace = "CleanArchitecture.Grpc.Protos";
+
+service NewService {
+  rpc GetAllNews (GetAllNewsRequest) returns (GetAllNewsResponse);
+  rpc GetNewById (GetNewByIdRequest) returns (GetNewByIdResponse);
+  rpc CreateNew (CreateNewRequest) returns (CreateNewResponse);
+  rpc UpdateNew (UpdateNewRequest) returns (UpdateNewResponse);
+  rpc DeleteNewById (DeleteNewByIdRequest) returns (DeleteNewByIdResponse);
+}
+
+message NewMessage {
+  int32 news_id = 1;
+  string title = 2;
+  string slug = 3;
+  string summary = 4;
+  string content = 5;
+}
+
+message GetAllNewsRequest {}
+
+message GetAllNewsResponse {
+  repeated NewMessage items = 1; 
+}
+
+message GetNewByIdRequest {
+  int32 id = 1;
+}
+
+message GetNewByIdResponse {
+  bool found = 1;
+  NewMessage new = 2;
+}
+
+message CreateNewRequest {
+  string title = 1;
+  string slug = 2;
+  string summary = 3;
+  string content = 4;
+}
+
+message CreateNewResponse {
+  int32 id = 1;
+}
+
+message UpdateNewRequest {
+  int32 id = 1;
+  string title = 2;
+  string slug = 3;
+  string summary = 4;
+  string content = 5;
+}
+
+message UpdateNewResponse {
+  int32 id = 1;
+}
+
+message DeleteNewByIdRequest {
+  int32 id = 1;
+}
+
+message DeleteNewByIdResponse {
+  bool success = 1;
+}

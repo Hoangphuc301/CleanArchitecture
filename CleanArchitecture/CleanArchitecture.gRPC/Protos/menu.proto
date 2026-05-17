@@ -1,0 +1,58 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "CleanArchitecture.Grpc.Protos";
+
+service MenuService {
+  rpc GetAllMenus (GetAllMenusRequest) returns (GetAllMenusResponse);
+  rpc GetMenuById (GetMenuByIdRequest) returns (GetMenuByIdResponse);
+  rpc CreateMenu (CreateMenuRequest) returns (CreateMenuResponse);
+  rpc UpdateMenu (UpdateMenuRequest) returns (UpdateMenuResponse);
+  rpc DeleteMenu (DeleteMenuRequest) returns (DeleteMenuResponse);
+}
+
+message MenuModel {
+  int32 id = 1;
+  string MenuName = 2;
+  string Slug = 3;
+  int32 DisplayOrder = 4;
+}
+
+message GetAllMenusRequest {}
+message GetAllMenusResponse {
+  repeated MenuModel items = 1;
+}
+
+message GetMenuByIdRequest {
+  int32 id = 1;
+}
+
+message GetMenuByIdResponse {
+  bool found = 1;
+  MenuModel menu = 2;
+}
+
+message CreateMenuRequest {
+  string MenuName = 1;
+  string Slug = 2;
+  int32 DisplayOrder = 3;
+}
+message CreateMenuResponse {
+  int32 id = 1;
+}
+
+message UpdateMenuRequest {
+  int32 id = 1;
+  string MenuName = 2;
+  string Slug = 3;
+  int32 DisplayOrder = 4;
+}
+message UpdateMenuResponse {
+  bool success = 1;
+}
+
+message DeleteMenuRequest {
+  int32 id = 1;
+}
+message DeleteMenuResponse {
+  bool success = 1;
+}

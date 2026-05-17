@@ -1484,8 +1484,8 @@ Read Model Database
 CQRS tách biệt:
 
 | Chức năng | Database |
-| WRITE | SQL Server |
-| READ | MongoDB |
+| WRITE     | SQL Server |
+| READ      | MongoDB |
 
 ---
 
@@ -1547,3 +1547,541 @@ Giúp hệ thống:
 - Xử lý bất đồng bộ hiệu quả
 - Tối ưu truy vấn đọc dữ liệu lớn
 ```
+
+# [17/05/26] 
+## Tìm hiểu và nghiên cứu về gRPC
+
+## gRPC là gì?
+
+gRPC (gRPC Remote Procedure Calls) là một framework mã nguồn mở, hiệu năng cao do Google phát triển nhằm tối ưu hóa việc giao tiếp giữa các dịch vụ (Microservices).
+
+Thay vì sử dụng mô hình RESTful truyền thống dựa trên JSON/XML qua HTTP/1.1, gRPC sử dụng:
+
+- Protocol Buffers (Protobuf)
+- HTTP/2
+
+để truyền tải dữ liệu nhanh hơn, nhẹ hơn và hiệu quả hơn.
+
+---
+
+# Kiến trúc hoạt động của gRPC
+
+## Quy trình hoạt động
+
+1. Định nghĩa service trong file `.proto`
+2. Sinh code Client/Server tự động
+3. Client gọi method như gọi hàm bình thường
+4. gRPC xử lý serialize + truyền dữ liệu
+
+---
+
+# Hai trụ cột công nghệ của gRPC
+
+## A. Protocol Buffers (Protobuf)
+
+Thay vì dùng JSON (văn bản thuần túy, tốn dung lượng), gRPC sử dụng Protobuf làm:
+
+- Interface Definition Language (IDL)
+- Định dạng Serialization
+
+### Ưu điểm
+
+- Dữ liệu được mã hóa dạng nhị phân (Binary)
+- Kích thước gói tin nhỏ hơn 3–10 lần so với JSON
+- Tốc độ serialize/deserialization nhanh hơn
+- Tự động sinh code cho nhiều ngôn ngữ
+
+### Ví dụ file `.proto`
+
+```proto
+syntax = "proto3";
+
+service MenuService {
+  rpc GetAllMenus(GetAllMenusRequest)
+      returns (GetAllMenusResponse);
+}
+
+message GetAllMenusRequest {}
+
+message MenuItem {
+  int32 id = 1;
+  string menuName = 2;
+}
+```
+
+---
+
+## B. HTTP/2
+
+gRPC hoạt động hoàn toàn trên HTTP/2.
+
+### Các tính năng nổi bật
+
+#### Multiplexing
+
+Cho phép gửi nhiều request/response cùng lúc trên một TCP connection.
+
+#### Header Compression
+
+Giảm dung lượng Header bằng HPACK.
+
+#### Streaming
+
+Hỗ trợ truyền dữ liệu liên tục 2 chiều.
+
+---
+
+# Các mô hình giao tiếp trong gRPC
+
+## 1. Unary RPC
+
+Client gửi 1 request và nhận 1 response.
+
+```text
+Client -----> Server
+       <-----
+```
+
+### Thích hợp cho
+
+- CRUD
+- API thông thường
+
+---
+
+## 2. Server Streaming RPC
+
+Client gửi 1 request, server trả về nhiều response liên tục.
+
+```text
+Client -----> Server
+       <----- <----- <-----
+```
+
+### Thích hợp cho
+
+- Live-feed
+- Tải danh sách lớn
+- Realtime dashboard
+
+---
+
+## 3. Client Streaming RPC
+
+Client gửi nhiều request, server trả về 1 response.
+
+### Thích hợp cho
+
+- Upload file
+- Push log
+
+---
+
+## 4. Bidirectional Streaming RPC
+
+Client và Server gửi dữ liệu đồng thời.
+
+### Thích hợp cho
+
+- Chat realtime
+- Game online
+- Streaming systems
+
+---
+
+# So sánh gRPC và REST
+
+| Đặc tính  | gRPC | REST |
+| Giao thức | HTTP/2 | HTTP/1.1 hoặc HTTP/2 |
+| Dữ liệu   | Protobuf (Binary) | JSON/XML |
+| Hiệu năng | Rất cao | Trung bình |
+| Streaming | Hỗ trợ mạnh | Hạn chế |
+| Browser support | Kém | Rất tốt |
+| Sinh code tự động | Có | Cần Swagger/OpenAPI |
+
+---
+
+# Ưu điểm của gRPC
+
+## Tốc độ cao
+
+- Binary protocol
+- HTTP/2
+- Payload nhỏ
+
+## Hỗ trợ đa ngôn ngữ
+
+- C#
+- Java
+- Go
+- Python
+- Node.js
+- C++
+
+## Streaming mạnh
+
+Phù hợp cho:
+
+- Realtime
+- IoT
+- Chat
+- Video stream
+
+## Strong Contract
+
+File `.proto` giúp Client và Server thống nhất cấu trúc dữ liệu.
+
+---
+
+# Nhược điểm của gRPC
+
+## Browser support hạn chế
+
+Frontend Web cần:
+
+- grpc-web
+- Envoy Proxy
+
+## Khó debug hơn REST
+
+Dữ liệu dạng Binary khó đọc bằng mắt thường.
+
+## REST phổ biến hơn
+
+Hệ sinh thái REST lớn hơn nhiều.
+
+---
+
+# Khi nào nên dùng gRPC?
+
+## Nên dùng
+
+- Microservices
+- Backend internal communication
+- Realtime systems
+- IoT
+- Distributed systems
+
+## Không nên dùng
+
+- Public API
+- Web frontend trực tiếp
+- Browser-heavy applications
+
+---
+
+# Tổng quan kiến trúc mới (gRPC + CQRS)
+
+```text
+[ Postman / gRPC Client ]
+        │
+        ▼ (Protobuf / HTTP2)
+
+ [ gRPC Services ]
+        │
+        ▼
+
+ [ MediatR Pipeline (ValidationBehavior) ]
+        │
+ ┌──────┴───────────────────────┐
+ ▼                              ▼
+
+[ WRITE - COMMAND ]        [ READ - QUERY ]
+(Create/Update/Delete)     (GetAll/GetById)
+
+ ▼                              ▼
+
+SQL SERVER                MONGODB
+
+ ▼                              ▼
+
+RabbitMQ                  Trả dữ liệu nhanh
+
+ ▼
+
+Worker / Consumer
+
+ ▼
+
+Đồng bộ sang MongoDB
+```
+
+---
+
+# LUỒNG 1: WRITE COMMAND
+
+## Flow
+
+```text
+gRPC Service
+    ↓
+Command
+    ↓
+CommandHandler
+    ↓
+Repository
+    ↓
+SQL Server
+    ↓
+RabbitMQ
+```
+
+---
+
+## 1. gRPC Service
+
+```csharp
+var savedMenu = await _mediator.Send(
+    new CreateMenuCommand(
+        request.MenuName,
+        request.Slug,
+        request.DisplayOrder));
+```
+
+---
+
+## 2. Domain Layer
+
+### Entity
+
+```csharp
+public class Menu
+{
+    public int Id { get; set; }
+    public string MenuName { get; set; }
+    public string Slug { get; set; }
+    public int DisplayOrder { get; set; }
+}
+```
+
+### Repository Interface
+
+```csharp
+public interface IMenuRepository
+{
+    Task<Menu> AddAsync(Menu menu);
+    Task SaveChangesAsync();
+}
+```
+
+---
+
+## 3. Infrastructure Layer
+
+### Repository Implementation
+
+```csharp
+public class MenuRepository : IMenuRepository
+{
+    private readonly SqlDbContext _context;
+
+    public MenuRepository(SqlDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<Menu> AddAsync(Menu menu)
+    {
+        await _context.Menus.AddAsync(menu);
+        return menu;
+    }
+
+    public async Task SaveChangesAsync()
+    {
+        await _context.SaveChangesAsync();
+    }
+}
+```
+
+---
+
+## 4. Application Layer
+
+### Command Handler
+
+```csharp
+public class CreateMenuCommandHandler
+    : IRequestHandler<CreateMenuCommand, CreateMenuResponseDto>
+{
+    private readonly IMenuRepository _menuRepository;
+    private readonly IRabbitMqPublisher _publisher;
+
+    public CreateMenuCommandHandler(
+        IMenuRepository menuRepository,
+        IRabbitMqPublisher publisher)
+    {
+        _menuRepository = menuRepository;
+        _publisher = publisher;
+    }
+
+    public async Task<CreateMenuResponseDto> Handle(
+        CreateMenuCommand request,
+        CancellationToken cancellationToken)
+    {
+        var menu = new Menu
+        {
+            MenuName = request.MenuName,
+            Slug = request.Slug,
+            DisplayOrder = request.DisplayOrder
+        };
+
+        await _menuRepository.AddAsync(menu);
+        await _menuRepository.SaveChangesAsync();
+
+        var menuCreatedEvent = new MenuCreatedEvent
+        {
+            Id = menu.Id,
+            MenuName = menu.MenuName,
+            Slug = menu.Slug,
+            DisplayOrder = menu.DisplayOrder
+        };
+
+        await _publisher.PublishAsync(menuCreatedEvent);
+
+        return new CreateMenuResponseDto
+        {
+            MenuId = menu.Id
+        };
+    }
+}
+```
+
+---
+
+# LUỒNG 2: READ QUERY
+
+## Flow
+
+```text
+gRPC Service
+    ↓
+Query
+    ↓
+QueryHandler
+    ↓
+Mongo Repository
+    ↓
+MongoDB
+```
+
+---
+
+## 1. gRPC Service
+
+```csharp
+var menus = await _mediator.Send(
+    new GetAllMenuQuery());
+```
+
+---
+
+## 2. Read Repository Interface
+
+```csharp
+public interface IMenuReadOnlyRepository
+{
+    Task<IEnumerable<MenuReadModel>> GetAllAsync();
+}
+```
+
+---
+
+## 3. Mongo Repository
+
+```csharp
+public class MenuReadOnlyRepository
+    : IMenuReadOnlyRepository
+{
+    private readonly IMongoCollection<MenuReadModel>
+        _menuCollection;
+
+    public MenuReadOnlyRepository(IMongoDatabase database)
+    {
+        _menuCollection =
+            database.GetCollection<MenuReadModel>("Menus");
+    }
+
+    public async Task<IEnumerable<MenuReadModel>>
+        GetAllAsync()
+    {
+        return await _menuCollection
+            .Find(_ => true)
+            .ToListAsync();
+    }
+}
+```
+
+---
+
+## 4. Query Handler
+
+```csharp
+public class GetAllMenuQueryHandler
+    : IRequestHandler<
+        GetAllMenuQuery,
+        IEnumerable<MenuResponseDto>>
+{
+    private readonly IMenuReadOnlyRepository
+        _readRepository;
+
+    public GetAllMenuQueryHandler(
+        IMenuReadOnlyRepository readRepository)
+    {
+        _readRepository = readRepository;
+    }
+
+    public async Task<IEnumerable<MenuResponseDto>>
+        Handle(
+            GetAllMenuQuery request,
+            CancellationToken cancellationToken)
+    {
+        var mongoMenus =
+            await _readRepository.GetAllAsync();
+
+        return mongoMenus.Select(m =>
+            new MenuResponseDto
+            {
+                Id = m.Id,
+                MenuName = m.MenuName,
+                Slug = m.Slug,
+                DisplayOrder = m.DisplayOrder
+            });
+    }
+}
+```
+
+---
+
+# Công nghệ sử dụng
+
+| Công nghệ | Vai trò |
+| gRPC      | Giao tiếp tốc độ cao |
+| Protobuf  | Định nghĩa dữ liệu |
+| CQRS      | Tách luồng đọc/ghi |
+| MediatR   | Điều phối Command/Query |
+| SQL Server| Write Database |
+| MongoDB   | Read Database |
+| RabbitMQ  | Event-driven communication |
+| Entity Framework Core | ORM cho SQL Server |
+
+---
+
+# Kết luận
+
+Hệ thống sử dụng:
+
+- Clean Architecture
+- CQRS Pattern
+- gRPC
+- RabbitMQ
+- MongoDB
+- SQL Server
+
+giúp:
+
+- Tăng hiệu năng
+- Tối ưu tốc độ đọc dữ liệu
+- Dễ scale hệ thống
+- Hỗ trợ realtime tốt
+- Tách biệt rõ trách nhiệm từng tầng
+- Phù hợp cho Microservices và Distributed Systems
